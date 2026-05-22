@@ -4,7 +4,14 @@
 
 ![Python version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11-blue.svg)
 
-**pamflow** is a workflow for analyzing passive acoustic monitoring data using Python. It is designed to offer an easy-to-use and reproducible framework for researchers, conservation biologists, citizen scientists, and anyone interested in ecoacoustics and soundscape ecology.
+Analysis data processing workflow for processing passive acoustic recordings carried out in Bogotá, Colombia. This data was collected within the framework of the Sonópolis project. This project aims to encourage biodiversity monitoring by the local community, following the monitoring cycle and using established protocols for passive acoustic monitoring.
+
+IAVH GDOC number: 25-203
+More information in CEIBA repository.
+Raw audio data and latest output from the anlisys is stored in the NAS FPVA.
+The global analisys status is being updated in this google doc
+
+Note: This repository is powered by pamflow. For general documentation on pamflow, visit the official [documentation](https://pamflow.readthedocs.io/en/latest/).
 
 ## Before You Begin
 
