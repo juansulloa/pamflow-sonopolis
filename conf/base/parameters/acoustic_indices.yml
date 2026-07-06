@@ -8,7 +8,7 @@ acoustic_indices:
     noverlap: 0  # Number of points to overlap between segments
     target_fs: 48000  # Sampling rate for analysis
     filter_type: bandpass
-    filter_cut: [300, 16000]
+    filter_cut: [10, 16000]
     filter_order: 3
   
   indices_settings: # List and paramters of acoustic indices
@@ -25,8 +25,8 @@ acoustic_indices:
     Ht: 
     H: 
     NDSI:
-      flim_bioPh: [2000, 20000]
-      flim_antroPh: [0, 2000]
+      flim_bioPh: [3000, 15000]
+      flim_antroPh: [0, 3000]
     NP:
       mode: linear
       min_peak_val: 0
@@ -36,7 +36,7 @@ acoustic_indices:
     RMS:
     SC:
       dB_threshold: -70
-      flim_LF: [1000, 20000]
+      flim_LF: [3000, 20000]
   
-  execution: # Number of cores used in parallelization 
-    n_jobs: -1 # (-1 for all cores)
+  execution:    # Number of cores used in parallelization 
+    n_jobs: -1  # (-1 for all cores)

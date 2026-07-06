@@ -13,14 +13,14 @@ sensor_location_plot:
 timelapse_plot:
   fig_height: 4          # Figure height (in inches)
   fig_width: 15          # Figure width (in inches)
-  nperseg: 1024          # Number of data points per segment
-  noverlap: 512          # Number of overlapping points
+  nperseg: 4096          # Number of data points per segment
+  noverlap: 2048          # Number of overlapping points
   flims: [0, 24000]      # Frequency limits (Hz)
   db_range: 90           # Dynamic range in decibels
   colormap: 'viridis'    # Colormap options: 'grey', 'viridis', 'plasma', 'inferno', 'cividis'
 
 # Parameters for generating timelapses
 timelapse:
-  sample_length: 5       # Length of each sample for timelapse (in seconds)
+  sample_length: 1       # Length of each sample for timelapse (in seconds)
   sample_period: '30min' # Time interval between samples (e.g., '30min')
-  sample_date: null      # Specific date for timelapse (YYYY-MM-DD). If null, the date with the most data will be used.
+  sample_date: 2026-05-12      # Specific date for timelapse (YYYY-MM-DD). If null, the date with the most data will be used.

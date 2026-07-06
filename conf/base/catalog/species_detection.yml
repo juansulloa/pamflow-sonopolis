@@ -21,7 +21,7 @@ segments_audio_folder@AudioFolderDataset:
   path: data/output/species_detection/segments
   dataset:
     type: pamflow.datasets.audio_dataset.SoundDataset
-  filename_suffix: ".WAV"
+  filename_suffix: ".wav"
 
 manual_annotations@PartitionedDataset:
   type: partitions.PartitionedDataset
