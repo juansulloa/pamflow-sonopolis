@@ -15,7 +15,6 @@ minimal_sample_data
 pamflow_tutorial_data
 data/**
 logs/**
-notebooks/**
 
 # except their sub-folders
 !data/**/
@@ -138,8 +137,9 @@ docs/_build/
 # PyBuilder
 target/
 
-# Jupyter Notebook
+# Jupyter Notebook and vscode
 .ipynb_checkpoints
+.vscode/**
 
 # IPython
 .ipython/profile_default/history.sqlite

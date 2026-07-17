@@ -1,0 +1,14 @@
+deploymentID,n_windows,pct_biophony,pct_anthropophony,pct_geophony,pct_silence,pct_unclassified,top_biophony_labels,top_anthropophony_labels,top_geophony_labels,top_silence_labels,biophony,anthropophony,geophony,silence,comments
+PAH05,1200,13.35,81.74,0.77,1.32,0.0,"Caw, Crow, Owl","Speech, Vehicle, Music","Thunder, Wind, Thunderstorm",Silence,10.0,90.0,0,0.0,
+PAH07,1200,26.86,47.15,7.8,7.81,0.0,"Owl, Hoot, Insect","Speech, Vehicle, Domestic animals, pets","Rain, Raindrop, Rain on surface",Silence,20.0,70.0,0,10.0,
+PAH108,1200,37.88,34.69,9.07,12.31,0.0,"Owl, Hoot, Crow","Vehicle, Speech, Domestic animals, pets","Thunder, Thunderstorm, Rain",Silence,20.0,30.0,0,30.0,
+PAH20,1200,12.59,51.64,19.51,1.85,0.0,"Owl, Chirp, tweet, Insect","Vehicle, Speech, Aircraft","Rain, Thunder, Rain on surface",Silence,30.0,40.0,0,30.0,
+PAH22,1200,13.06,74.52,6.65,1.61,0.0,"Frog, Owl, Croak","Vehicle, Speech, Aircraft","Rain, Thunder, Raindrop",Silence,30.0,60.0,0,10.0,
+PAH23,1200,7.44,6.07,43.37,32.37,0.0,"Owl, Frog, Chirp, tweet","Speech, Domestic animals, pets, Vehicle","Rain, Raindrop, Rain on surface",Silence,5.0,0.0,0,90.0,
+PAH74,1198,8.42,75.46,4.68,0.95,0.0,"Cricket, Insect, Crow","Vehicle, Speech, Aircraft","Rain, Thunder, Raindrop",Silence,20.0,75.0,0,5.0,
+PAH75,1200,21.09,70.86,4.42,0.05,0.0,"Frog, Croak, Crow","Vehicle, Speech, Aircraft","Rain, Rain on surface, Raindrop",Silence,20.0,75.0,0,5.0,frogs
+PAH86,1199,24.44,65.54,0.79,0.5,0.0,"Owl, Hoot, Insect","Speech, Vehicle, Domestic animals, pets","Rain, Thunder, Stream",Silence,20.0,75.0,0,5.0,
+PAH88,1200,6.45,67.23,17.38,0.0,0.0,"Insect, Chirp, tweet, Cricket","Vehicle, Engine, Speech","Thunder, Rain, Thunderstorm",,50.0,40.0,0,10.0,
+PAH93,1200,9.97,80.98,3.82,0.0,0.0,"Owl, Insect, Hoot","Vehicle, Speech, Music","Rain, Rain on surface, Raindrop",,30.0,70.0,0,0.0,
+PAH96,1200,16.17,69.78,7.94,0.18,0.0,"Frog, Croak, Crow","Vehicle, Speech, Aircraft","Thunder, Wind, Thunderstorm",Silence,30.0,70.0,0,5.0,
+PAO202,1200,8.06,5.14,19.81,58.94,0.0,"Owl, Chirp, tweet, Frog","Vehicle, Domestic animals, pets, Speech","Raindrop, Rain, Rain on surface",Silence,5.0,0.0,0,90.0,

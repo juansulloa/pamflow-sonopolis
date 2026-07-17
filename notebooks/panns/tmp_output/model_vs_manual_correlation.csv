@@ -1,0 +1,5 @@
+category,n_sites,pearson_r,pearson_p,spearman_r,spearman_p,mean_abs_error_pct,mean_bias_pct
+biophony,13,-0.095,0.7574,-0.052,0.8668,12.5,-6.48
+anthropophony,13,0.903,0.0,0.766,0.0023,9.67,2.75
+geophony,13,,,,,11.23,11.23
+silence,13,0.924,0.0,0.762,0.0025,13.44,-13.24
