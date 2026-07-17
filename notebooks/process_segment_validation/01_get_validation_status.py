@@ -11,7 +11,9 @@ classificationProbability is parsed from the leading numeric field of the
 filename, e.g. "0.464_PAH20_20260427_140000_54.0_57.0.wav" -> 0.464.
 
 Usage:
-    python get_validation_status.py /path/to/root_folder [-o output.csv]
+    python 01_get_validation_status.py /path/to/root_folder [-o output.csv]
+
+    If -o/--output is omitted, results are saved to data/output/validation/segment_validation_results.csv.
 """
 
 import argparse
@@ -75,7 +77,11 @@ def main():
         description="Build a DataFrame of segment validation status from a species folder structure."
     )
     parser.add_argument("root_folder", help="Path to the root folder containing species subfolders")
-    parser.add_argument("-o", "--output", help="Optional path to save the result as CSV")
+    parser.add_argument(
+        "-o", "--output",
+        default="../../data/output/validation/segment_validation_results.csv",
+        help="Path to save the result as CSV (default: segment_validation_results.csv)",
+    )
     args = parser.parse_args()
 
     df = get_validation_status(args.root_folder)
@@ -106,11 +112,6 @@ def main():
     if args.output:
         df.to_csv(args.output, index=False)
         print(f"\nSaved to {args.output}")
-        print("Note: 'NA' here is a real validationResult label, not a missing value. "
-              "When reading this CSV back with pandas, pass "
-              "keep_default_na=False, na_values=[] or 'NA' will silently "
-              "become NaN.")
-
 
 if __name__ == "__main__":
     main()
