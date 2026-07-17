@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Utilitary functions to manage, check and preprocess large sampling data assiciated with passive acoustic monitoring
+Transform standard from pamDP to camtraDP to load to GBIF and CSA event format
 
 """
 
@@ -12,6 +12,13 @@ import json
 
 
 def from_media_to_media_gbif(media):
+    """
+    Conversion steps
+    1. Drop audio columns that are not part of the GBIF media format
+    2. Create a new column mediaComments that is a JSON object with the dropped columns
+    
+    Return the media_gbif dataframe with the new column and the dropped columns
+    """
     columns_to_drop=['sampleRate' , 'bitDepth' , 'fileLength' , 'numChannels']
     media['mediaComments']= json.loads(media[columns_to_drop].T.to_json()).values()
     media_gbif = media.drop(columns=columns_to_drop)
