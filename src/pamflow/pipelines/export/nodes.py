@@ -25,23 +25,91 @@ def from_media_to_media_gbif(media):
     return media_gbif
     
 def from_deployments_to_deployments_gbif(deployments):
+    """
+    Conversion steps
+
+    1. Rename columns to match GBIF format:
+       - recorderID       -> cameraID
+       - recorderModel    -> cameraModel
+       - recorderHeight   -> cameraHeight
+       - recorderDepth    -> cameraDepth
+       - recorderTilt     -> cameraTilt
+       - recorderHeading  -> cameraHeading
+    2. Add information from column recorderConfiguration to column deploymentTags
+       as key:pair value, keeping the value that might be present in this column
+       and splitting values with pipe character for multiple values
+       key1:pair1 | key2:pair2, etc.
+    """
     deployments_gbif = deployments.rename(
         columns={
             "recorderID": "cameraID",
             "recorderModel": "cameraModel",
             "recorderHeight": "cameraHeight",
+            "recorderDepth": "cameraDepth",
+            "recorderTilt": "cameraTilt",
+            "recorderHeading": "cameraHeading",
         }
         )
-    deployments_gbif['deploymentComments']=deployments_gbif['recorderConfiguration'].apply(
-        lambda row: {'recorderConfiguration':row}
-    )
-    deployments_gbif = deployments_gbif.drop(columns=['recorderConfiguration'])
+    
+
+    
+    def _merge_tags(row):
+        existing = row.get("deploymentTags")
+        new_tags = row.get("recorderConfiguration")
+
+        parts = []
+        if isinstance(existing, str) and existing.strip():
+            parts.append(existing.strip())
+        if new_tags:
+            parts.append(new_tags)
+
+        return " | ".join(parts) if parts else existing
+
+    deployments_gbif["deploymentTags"] = deployments_gbif.apply(_merge_tags, axis=1)
+
+    # drop recorderConfiguration column
+    deployments_gbif.drop(columns="recorderConfiguration", inplace=True)
+
     return deployments_gbif
 
-def from_observations_to_observations_gbif(observations):
-    dwc_observations = observations.assign(observationLevel='event')
-    return dwc_observations
+def from_observations_to_observations_gbif(observations, media):
+    """
+    Conversion steps
 
+    1. eventStart and eventEnd
+       In camtrapDP these are absolute datetime values in ISO format. In pamDP
+       they are given as seconds relative to the timestamp of the audio
+       recording (media). To convert:
+         - merge observations with media on mediaID to bring in the
+           recording's timestamp column
+         - add eventStart/eventEnd (seconds) to that timestamp as a timedelta
+           to get the absolute datetime
+         - format the result back to ISO 8601 to match camtrapDP
+    2. Assign observationLevel as 'media'
+    """
+    dwc_observations = observations.merge(
+        media[["mediaID", "timestamp"]],
+        on="mediaID",
+        how="left",
+    )
+
+    dwc_observations["timestamp"] = pd.to_datetime(dwc_observations["timestamp"])
+
+    dwc_observations["eventStart"] = (
+        dwc_observations["timestamp"]
+        + pd.to_timedelta(dwc_observations["eventStart"], unit="s")
+    ).dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    dwc_observations["eventEnd"] = (
+        dwc_observations["timestamp"]
+        + pd.to_timedelta(dwc_observations["eventEnd"], unit="s")
+    ).dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    dwc_observations = dwc_observations.drop(columns=["timestamp"])
+
+    dwc_observations = dwc_observations.assign(observationLevel="media")
+
+    return dwc_observations
 
 def from_deployments_to_CSA_eventos(deployments, media, fdm):
     # ---------------
