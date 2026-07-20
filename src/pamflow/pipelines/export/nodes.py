@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Transform standard from pamDP to camtraDP to load to GBIF and CSA event format
+Transform standard from pamDP to camtraDP to load to GBIF
 
 """
 
@@ -13,11 +13,26 @@ import json
 
 def from_media_to_media_gbif(media):
     """
-    Conversion steps
-    1. Drop audio columns that are not part of the GBIF media format
-    2. Create a new column mediaComments that is a JSON object with the dropped columns
-    
-    Return the media_gbif dataframe with the new column and the dropped columns
+    Convert a pamDP media table to the camtrapDP/GBIF media format.
+
+    Conversion steps:
+    1. Drop audio-specific columns that have no equivalent in the GBIF
+       media format: sampleRate, bitDepth, fileLength, numChannels.
+    2. Pack the dropped columns into a new mediaComments column, as a
+       JSON object per row (e.g. {"sampleRate": 44100, "bitDepth": 16, ...}),
+       so the information is preserved instead of being lost.
+
+    Parameters
+    ----------
+    media : pandas.DataFrame
+        pamDP media table. Must contain the columns sampleRate, bitDepth,
+        fileLength and numChannels.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of media with the audio-specific columns replaced by a single
+        mediaComments column holding those values as JSON.
     """
     columns_to_drop=['sampleRate' , 'bitDepth' , 'fileLength' , 'numChannels']
     media['mediaComments']= json.loads(media[columns_to_drop].T.to_json()).values()
@@ -26,8 +41,9 @@ def from_media_to_media_gbif(media):
     
 def from_deployments_to_deployments_gbif(deployments):
     """
-    Conversion steps
+    Convert a pamDP deployments table to the camtrapDP/GBIF deployments format.
 
+    Conversion steps:
     1. Rename columns to match GBIF format:
        - recorderID       -> cameraID
        - recorderModel    -> cameraModel
@@ -35,10 +51,24 @@ def from_deployments_to_deployments_gbif(deployments):
        - recorderDepth    -> cameraDepth
        - recorderTilt     -> cameraTilt
        - recorderHeading  -> cameraHeading
-    2. Add information from column recorderConfiguration to column deploymentTags
-       as key:pair value, keeping the value that might be present in this column
-       and splitting values with pipe character for multiple values
-       key1:pair1 | key2:pair2, etc.
+    2. Merge recorderConfiguration into deploymentTags: append its value to
+       any existing deploymentTags content, separated by " | ", so multiple
+       tag entries are preserved (e.g. "key1:pair1 | key2:pair2"). The
+       recorderConfiguration column is dropped afterwards.
+
+    Parameters
+    ----------
+    deployments : pandas.DataFrame
+        pamDP deployments table. Must contain the recorderID, recorderModel,
+        recorderHeight, recorderDepth, recorderTilt, recorderHeading and
+        recorderConfiguration columns. May optionally contain a
+        deploymentTags column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of deployments with recorder* columns renamed to camera*, and
+        recorderConfiguration merged into deploymentTags and removed.
     """
     deployments_gbif = deployments.rename(
         columns={
@@ -50,8 +80,6 @@ def from_deployments_to_deployments_gbif(deployments):
             "recorderHeading": "cameraHeading",
         }
         )
-    
-
     
     def _merge_tags(row):
         existing = row.get("deploymentTags")
@@ -74,18 +102,35 @@ def from_deployments_to_deployments_gbif(deployments):
 
 def from_observations_to_observations_gbif(observations, media):
     """
-    Conversion steps
+    Convert a pamDP observations table to the camtrapDP/GBIF observations format.
 
+    Conversion steps:
     1. eventStart and eventEnd
-       In camtrapDP these are absolute datetime values in ISO format. In pamDP
-       they are given as seconds relative to the timestamp of the audio
+       In camtrapDP these are absolute datetime values in ISO 8601 format. In
+       pamDP they are given as seconds relative to the timestamp of the audio
        recording (media). To convert:
          - merge observations with media on mediaID to bring in the
            recording's timestamp column
          - add eventStart/eventEnd (seconds) to that timestamp as a timedelta
            to get the absolute datetime
          - format the result back to ISO 8601 to match camtrapDP
-    2. Assign observationLevel as 'media'
+    2. Assign observationLevel as 'media' for every row, since pamDP
+       observations are always media-level (as opposed to event-level).
+
+    Parameters
+    ----------
+    observations : pandas.DataFrame
+        pamDP observations table. Must contain mediaID, eventStart and
+        eventEnd (the latter two as seconds relative to the media timestamp).
+    media : pandas.DataFrame
+        pamDP media table. Must contain mediaID and timestamp, used to
+        resolve eventStart/eventEnd into absolute datetimes.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of observations with eventStart/eventEnd converted to absolute
+        ISO 8601 datetimes and a new observationLevel column set to 'media'.
     """
     dwc_observations = observations.merge(
         media[["mediaID", "timestamp"]],
