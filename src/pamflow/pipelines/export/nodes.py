@@ -10,6 +10,10 @@ import pandas as pd
 import datetime
 import json
 
+def row_to_json(row):
+    # reemplaza NaN por None para que sea JSON válido (NaN no es JSON estándar)
+    clean = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+    return json.dumps(clean)
 
 def from_media_to_media_gbif(media):
     """
@@ -35,7 +39,7 @@ def from_media_to_media_gbif(media):
         mediaComments column holding those values as JSON.
     """
     columns_to_drop=['sampleRate' , 'bitDepth' , 'fileLength' , 'numChannels']
-    media['mediaComments']= json.loads(media[columns_to_drop].T.to_json()).values()
+    media['exifData'] = media[columns_to_drop].apply(row_to_json, axis=1)
     media_gbif = media.drop(columns=columns_to_drop)
     return media_gbif
     
@@ -150,7 +154,8 @@ def from_observations_to_observations_gbif(observations, media):
         + pd.to_timedelta(dwc_observations["eventEnd"], unit="s")
     ).dt.strftime("%Y-%m-%dT%H:%M:%S%z")
 
-    dwc_observations = dwc_observations.drop(columns=["timestamp"])
+    # Drop unnecesary/unsupported columns by camtrapDP
+    dwc_observations = dwc_observations.drop(columns=["timestamp", "frequencyLow", "frequencyHigh"])
 
     dwc_observations = dwc_observations.assign(observationLevel="media")
 
