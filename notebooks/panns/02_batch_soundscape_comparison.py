@@ -133,4 +133,4 @@ if __name__ == "__main__":
         print(f"\nSaved comparison table: {output_path}")
         print(f"({len(comparison_df)} deployments)\n")
         print(comparison_df[["deploymentID", "n_windows", "pct_biophony",
-                              "pct_anthropophony", "pct_geophony"]].to_string(index=False))
+                              "pct_anthropophony", "pct_geophony", "pct_silence"]].to_string(index=False))
