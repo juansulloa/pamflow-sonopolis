@@ -239,7 +239,7 @@ def plot_results(
                    color='grey')
 
     # Customize the plot
-    plt.title(f'Confidence scores - pr(tpr={proba}) = {round(cutoff, 3)}')
+    plt.title(f'{focal_species} \n Confidence scores - pr(tpr={proba}) = {round(cutoff, 3)}')
     plt.xlabel('Confidence score')
     plt.ylabel('pr(BirdNET prediction is correct)')
     plt.xlim([min(prediction_range_conf), max(prediction_range_conf)])
