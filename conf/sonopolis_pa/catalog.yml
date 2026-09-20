@@ -1,0 +1,8 @@
+field_deployments_sheet@pandas:
+  type: pamflow.datasets.pamDP.field_deployments_sheet.FieldDeployments
+  filepath: data/input/field_deployments/field_deployments_sheet_sonopolis_PA.xlsx
+  save_args:
+    header: 0
+  load_args:
+    header: 0
+
