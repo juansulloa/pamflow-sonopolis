@@ -36,6 +36,10 @@ ruff check src/                            # lint (rules: F, E, W, UP, I, PL —
 Recommended first-run order (each is a registered pipeline name):
 `data_preparation` → `quality_control` → `species_detection` → `acoustic_indices` → `graphical_soundscape` → `export`
 
+## Code conventions
+
+- All code must be written in English: identifiers, comments, docstrings, log messages, error messages, and CLI help text.
+
 ## Architecture
 
 ### Kedro project layout
