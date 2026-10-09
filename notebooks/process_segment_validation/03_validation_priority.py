@@ -4,7 +4,15 @@ Identify which species need more validated segments to be includable by
 ceiling that more of the same validation won't fix.
 
 Reads the raw segment_validation_results.csv (produced by
-01_get_validation_status.py) and, for every species, finds the confidence
+01_get_validation_status.py, columns segmentName, scientificNameModel,
+classificationProbability, validationResult, scientificNameValidated). Like
+02_find_model_threshold.py, only segments detected by the model count: manual
+annotations (scientificNameModel is NA) and segments manually reassigned to
+another species (scientificNameValidated differs from scientificNameModel) are
+excluded. A species whose validated segments were all reassigned therefore
+appears as 'noData'.
+
+For every model species, finds the confidence
 threshold that maximizes a one-sided 95% Jeffreys lower-bound precision
 across ALL candidate thresholds -- deliberately ignoring the minimum-sample-
 size floor that 02_find_model_threshold.py enforces, so a small but clean
@@ -30,10 +38,10 @@ species already assigned a usable cutoff there (cutoffSource in
 be filtered down to just the actual to-do list.
 
 Usage:
-    python 04_validation_priority.py [-i segment_validation_results.csv]
+    python 03_validation_priority.py [-i segment_validation_results.csv]
         [--thresholds-csv species_confidence_thresholds.csv]
         [--target-precision 0.95]
-        [--output-csv ../../data/output/validation/validation_priority.csv]
+        [--output-csv ../../data/output_pa/validation/validation_priority.csv]
 """
 import argparse
 from pathlib import Path
@@ -46,11 +54,18 @@ def jeffreys_lower_bound(successes, n, confidence=0.95):
     alpha = 1 - confidence
     return beta.ppf(alpha, successes + 0.5, n - successes + 0.5)
 
+def select_model_segments(validation_results):
+    """Drop manual annotations and manually reassigned segments."""
+    model = validation_results['scientificNameModel']
+    validated = validation_results['scientificNameValidated']
+    is_reassigned = validated.notna() & (validated != model)
+    return validation_results[model.notna() & ~is_reassigned]
+
 def load_data(validation_results, species):
     """Filter validation results to a single species' validated (Positive/Negative)
     segments, mapping validationResult to 0/1 in 'positive'.
     """
-    data = validation_results[validation_results['scientificName'] == species]
+    data = validation_results[validation_results['scientificNameModel'] == species]
     data = data[data['validationResult'].isin(['Positive', 'Negative'])].copy()
     data = data.dropna(subset=['classificationProbability'])
     data['positive'] = data['validationResult'].map({'Negative': 0, 'Positive': 1})
@@ -122,20 +137,21 @@ def main():
     parser = argparse.ArgumentParser(
         description='Prioritize which species need more validated segments to become includable.'
     )
-    parser.add_argument('-i', '--input', default='../../data/output/validation/segment_validation_results.csv',
-                         help='Path to segment_validation_results.csv (default: ../../data/output/validation/segment_validation_results.csv)')
+    parser.add_argument('-i', '--input', default='../../data/output_pa/validation/segment_validation_results.csv',
+                         help='Path to segment_validation_results.csv (default: ../../data/output_pa/validation/segment_validation_results.csv)')
     parser.add_argument('--thresholds-csv', default=None,
                          help='Optional path to species_confidence_thresholds.csv (output of '
                               '02_find_model_threshold.py). If given, species already assigned a '
                               "usable cutoff there are labeled 'alreadyIncluded'.")
     parser.add_argument('--target-precision', type=float, default=0.95,
                          help='Target precision to evaluate against (default: 0.95)')
-    parser.add_argument('--output-csv', default='../../data/output/validation/validation_priority.csv',
-                         help='Path to save the priority table (default: ../../data/output/validation/validation_priority.csv)')
+    parser.add_argument('--output-csv', default='../../data/output_pa/validation/validation_priority.csv',
+                         help='Path to save the priority table (default: ../../data/output_pa/validation/validation_priority.csv)')
     args = parser.parse_args()
 
-    validation_results = pd.read_csv(args.input)
-    species_list = sorted(validation_results['scientificName'].unique())
+    all_results = pd.read_csv(args.input)
+    species_list = sorted(all_results['scientificNameModel'].dropna().unique())
+    validation_results = select_model_segments(all_results)
 
     rows = []
     for species in species_list:

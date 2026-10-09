@@ -1,36 +1,39 @@
 """
-Filter observations.csv down to detections that meet each species'
-appliedCutoff confidence threshold, as computed by
-02_find_model_threshold.py's species_confidence_thresholds.csv.
+Build the final observations table from the model observations and the manual
+validation results (segment_validation_results.csv from
+01_get_validation_status.py, thresholds from 02_find_model_threshold.py).
 
-An observation is kept only if its classificationProbability is >= the
-appliedCutoff for its scientificName. Species with appliedCutoff = inf
-(cutoffSource = 'exclude') are dropped entirely, since no confidence score
-can meet an infinite cutoff. Species with no row at all in the thresholds
-table (never went through validation) are also dropped by default, since
-there's no evidence-backed cutoff to apply; --keep-unthresholded keeps them
-instead.
+The output contains, in order of precedence (an observation is used once):
+    1. Reassigned: observations whose segment was manually reassigned to another
+       species. scientificName is replaced by the validated species and a
+       comment records that it was a model false positive reassigned manually.
+    2. Manually confirmed: observations whose segment was validated as Positive
+       (classification fields stamped as human review).
+    3. Thresholded: the remaining machine observations whose
+       classificationProbability is >= the appliedCutoff of their species.
+       Species with appliedCutoff = inf (cutoffSource = 'exclude') are dropped,
+       as are species missing from the thresholds table unless
+       --keep-unthresholded is set. Observations manually validated as Negative
+       (and not reassigned) are dropped even if they meet the cutoff.
+    4. Inferred reassignments (only with --apply-confusions): remaining
+       observations of a species consistently confused with another species
+       (species_confusions.csv) at or above appliedConfusionCutoff are relabeled
+       as the confused species and tagged 'inferred_reassignment'.
+    5. Manual annotations: segments without a model species are added as new
+       observations with a new observationID.
 
-Observations manually confirmed as Positive in segment_validation_results.csv
-are included in the output regardless of whether they meet the cutoff, since
-a human confirmation is stronger evidence than the statistical threshold.
+Segment names are structured as
+"{classificationProbability}_{mediaID}_{eventStart}_{eventEnd}.wav", e.g.
+"0.122_PAO202_20260412_013000_30.0_33.0.wav". mediaID in the observations
+carries an uppercase ".WAV" extension.
 
 Usage:
     python 04_update_observations.py [-i observations.csv]
-        [-t ../../data/output/validation/species_confidence_thresholds.csv]
-        [-v ../../data/output/validation/segment_validation_results.csv]
-        [-o ../../data/output/validation/observations.csv]
-        [--keep-unthresholded]
-
-    -i/--observations defaults to observations.csv in the current directory.
-    -t/--thresholds defaults to species_confidence_thresholds.csv produced by
-        02_find_model_threshold.py.
-    -v/--validations defaults to segment_validation_results.csv, used to
-        recover manually confirmed positives regardless of cutoff.
-    -o/--output is where the filtered observations are saved
-        (default: ../../data/output/validation/observations.csv).
-    --keep-unthresholded keeps observations for species missing from the
-        thresholds table instead of dropping them.
+        [-t ../../data/output_pa/validation/species_confidence_thresholds.csv]
+        [-v ../../data/output_pa/validation/segment_validation_results.csv]
+        [-c ../../data/output_pa/validation/species_confusions.csv]
+        [-o ../../data/output_pa/validation/observations_thresholded.csv]
+        [--keep-unthresholded] [--apply-confusions]
 """
 import argparse
 from pathlib import Path
@@ -40,50 +43,122 @@ import pandas as pd
 CLASSIFIEDBYNAME = "Eliana Barona"
 CLASSIFICATIONDATE = "2026-07-13T00:00:00"
 
-def get_manually_validated_observations(observations, segment_validation_results):
-    """Return the subset of `observations` confirmed by manual validation.
+MATCH_COLUMNS = ['mediaID', 'eventStart', 'eventEnd', 'scientificName', 'classificationProbability']
+INFERRED_TAG = 'inferred_reassignment'
 
-    Segments in `segment_validation_results` with validationResult == 'Positive'
-    are matched back to their source row in `observations`. Each segmentName is
-    structured as "{classificationProbability}_{mediaID}_{eventStart}_{eventEnd}.wav"
-    (e.g. "0.122_PAO202_20260412_013000_30.0_33.0.wav" decodes to
-    classificationProbability=0.122, mediaID=PAO202_20260412_013000.WAV,
-    eventStart=30.0, eventEnd=33.0). Note mediaID in `observations` carries an
-    uppercase ".WAV" extension while segmentName uses a lowercase ".wav" suffix.
 
-    A match requires equal mediaID, eventStart, eventEnd, scientificName, and
-    classificationProbability between the decoded segment and an observations row.
-
-    Returns the matching rows of `observations` (one row per matched positive
-    segment); segments that don't match any observation are dropped silently.
+def decode_segments(validations):
+    """Decode segmentName into classificationProbability, mediaID, eventStart
+    and eventEnd, keeping the validation columns.
     """
-    positive = segment_validation_results[segment_validation_results['validationResult'] == 'Positive']
-
-    stem = positive['segmentName'].str.removesuffix('.wav')
+    stem = validations['segmentName'].str.removesuffix('.wav')
     parts = stem.str.split('_')
-
-    decoded = pd.DataFrame({
-        'classificationProbability': parts.str[0].astype(float),
-        'mediaID': parts.str[1:-2].str.join('_') + '.WAV',
-        'eventStart': parts.str[-2].astype(float),
-        'eventEnd': parts.str[-1].astype(float),
-        'scientificName': positive['scientificName'].values,
+    return pd.DataFrame({
+        'segmentName': validations['segmentName'].values,
+        'classificationProbability': parts.str[0].astype(float).values,
+        'mediaID': (parts.str[1:-2].str.join('_') + '.WAV').values,
+        'eventStart': parts.str[-2].astype(float).values,
+        'eventEnd': parts.str[-1].astype(float).values,
+        'scientificNameModel': validations['scientificNameModel'].values,
+        'validationResult': validations['validationResult'].values,
+        'scientificNameValidated': validations['scientificNameValidated'].values,
     })
 
-    merge_cols = ['mediaID', 'eventStart', 'eventEnd', 'scientificName', 'classificationProbability']
-    matched = observations.merge(decoded[merge_cols], on=merge_cols, how='inner')
+
+def match_observations(observations, decoded, label):
+    """Return the rows of `observations` matching the decoded model segments,
+    with scientificNameValidated added. Unmatched segments are reported.
+    """
+    right = decoded.rename(columns={'scientificNameModel': 'scientificName'})[
+        MATCH_COLUMNS + ['scientificNameValidated']
+    ]
+    matched = observations.merge(right, on=MATCH_COLUMNS, how='inner')
+
+    # Some segments were exported with the observation window padded with
+    # context (e.g. observation 24.0-27.0 -> segment 21.5-29.5). Match these on
+    # media, species and score, with the observation window inside the segment.
+    unmatched = right.merge(
+        observations[MATCH_COLUMNS].drop_duplicates(), on=MATCH_COLUMNS, how='left', indicator=True
+    )
+    unmatched = unmatched[unmatched['_merge'] == 'left_only'].drop(columns='_merge')
+    n_unmatched = len(unmatched)
+    if len(unmatched) > 0:
+        candidates = unmatched.reset_index(drop=True).rename_axis('segmentIndex').reset_index().merge(
+            observations,
+            on=['mediaID', 'scientificName', 'classificationProbability'],
+            suffixes=('_segment', ''),
+        )
+        candidates = candidates[
+            (candidates['eventStart_segment'] <= candidates['eventStart'])
+            & (candidates['eventEnd'] <= candidates['eventEnd_segment'])
+        ].copy()
+        candidates['centerDistance'] = (
+            (candidates['eventStart'] + candidates['eventEnd'])
+            - (candidates['eventStart_segment'] + candidates['eventEnd_segment'])
+        ).abs()
+        n_ambiguous = int((candidates.groupby('segmentIndex').size() > 1).sum())
+        if n_ambiguous > 0:
+            print(f"WARNING: {n_ambiguous} {label} segments matched several observations, "
+                  "using the one closest to the segment center")
+        padded = candidates.sort_values('centerDistance').drop_duplicates(subset='segmentIndex')
+        matched = pd.concat([matched, padded[matched.columns]])
+        n_unmatched -= len(padded)
+
+    # Several segments can point to the same observation (e.g. a padded and an
+    # exact clip of one detection), so the output is deduplicated.
+    matched = matched.drop_duplicates(subset='observationID')
+    if n_unmatched > 0:
+        print(f"WARNING: {n_unmatched} {label} segments did not match any observation")
     return matched
 
-def stamp_manual_validation_metadata(manually_validated):
-    """Overwrite classification fields on manually-confirmed rows to reflect
-    human review instead of the original automated classification.
-    """
-    manually_validated = manually_validated.copy()
-    manually_validated['classificationProbability'] = 1
-    manually_validated['classificationMethod'] = 'human'
-    manually_validated['classifiedBy'] = CLASSIFIEDBYNAME
-    manually_validated['classificationTimestamp'] = CLASSIFICATIONDATE
-    return manually_validated
+
+def stamp_human_review(rows):
+    """Overwrite classification fields to reflect human review."""
+    rows = rows.copy()
+    rows['classificationMethod'] = 'human'
+    rows['classifiedBy'] = CLASSIFIEDBYNAME
+    rows['classificationTimestamp'] = CLASSIFICATIONDATE
+    return rows
+
+
+def build_reassigned(observations, decoded):
+    """Observations manually reassigned to another species, relabeled and commented."""
+    validated = decoded['scientificNameValidated']
+    model = decoded['scientificNameModel']
+    reassigned = decoded[model.notna() & validated.notna() & (validated != model)]
+    matched = match_observations(observations, reassigned, 'reassigned')
+
+    result = stamp_human_review(matched.drop(columns='scientificNameValidated'))
+    result['observationComments'] = (
+        "Model false positive (" + matched['scientificName'] + "), reassigned manually to "
+        + matched['scientificNameValidated']
+    ).values
+    result['scientificName'] = matched['scientificNameValidated'].values
+    return result
+
+
+def build_confirmed(observations, decoded):
+    """Observations manually validated as Positive for the model species."""
+    model = decoded['scientificNameModel']
+    validated = decoded['scientificNameValidated']
+    positive = decoded[
+        model.notna() & (decoded['validationResult'] == 'Positive') & (validated == model)
+    ]
+    matched = match_observations(observations, positive, 'positive')
+    result = stamp_human_review(matched.drop(columns='scientificNameValidated'))
+    result['classificationProbability'] = 1
+    return result
+
+
+def get_manually_rejected_ids(observations, decoded):
+    """observationIDs validated as Negative and not reassigned."""
+    model = decoded['scientificNameModel']
+    negative = decoded[
+        model.notna() & (decoded['validationResult'] == 'Negative')
+        & decoded['scientificNameValidated'].isna()
+    ]
+    return set(match_observations(observations, negative, 'negative')['observationID'])
+
 
 def filter_observations(observations, thresholds, keep_unthresholded=False):
     """Keep only observations whose classificationProbability is >= the
@@ -105,41 +180,117 @@ def filter_observations(observations, thresholds, keep_unthresholded=False):
     return observations[keep]
 
 
+def apply_confusions(candidates, confusions):
+    """Relabel candidate observations of consistently confused species."""
+    pairs = confusions[np.isfinite(confusions['appliedConfusionCutoff'])]
+    relabeled = []
+    for pair in pairs.itertuples():
+        rows = candidates[
+            (candidates['scientificName'] == pair.modelSpecies)
+            & (candidates['classificationProbability'] >= pair.appliedConfusionCutoff)
+        ].copy()
+        rows['observationComments'] = (
+            f"Inferred reassignment: {pair.modelSpecies} detections at this confidence "
+            f"were consistently {pair.confusedSpecies} in manual validation"
+        )
+        rows['observationTags'] = INFERRED_TAG
+        rows['scientificName'] = pair.confusedSpecies
+        relabeled.append(rows)
+    if not relabeled:
+        return candidates.iloc[0:0]
+    return pd.concat(relabeled)
+
+
+def build_manual_annotations(observations, decoded):
+    """New observation rows for manual annotations (segments without a model species)."""
+    manual = decoded[decoded['scientificNameModel'].isna()]
+    media_stem = manual['mediaID'].str.removesuffix('.WAV')
+    new = pd.DataFrame({
+        'deploymentID': media_stem.str.split('_').str[0].values,
+        'mediaID': manual['mediaID'].values,
+        'eventStart': manual['eventStart'].values,
+        'eventEnd': manual['eventEnd'].values,
+        'scientificName': manual['scientificNameValidated'].values,
+    })
+
+    unknown = sorted(set(new['deploymentID']) - set(observations['deploymentID']))
+    if unknown:
+        print(f"WARNING: deploymentIDs not found in observations: {unknown}")
+
+    existing = observations[['mediaID', 'eventStart', 'eventEnd', 'scientificName']]
+    already = new.merge(existing, how='left', indicator=True)['_merge'].eq('both').values
+    if already.any():
+        print(f"WARNING: {already.sum()} manual annotations already exist in observations, skipped")
+    new = new[~already].reset_index(drop=True)
+
+    new['observationID'] = observations['observationID'].max() + 1 + np.arange(len(new))
+    new['observationLevel'] = 'interval'
+    new['observationType'] = 'animal'
+    new['classificationProbability'] = 1
+    new['observationComments'] = 'Manual annotation'
+    new = stamp_human_review(new)
+    return new.reindex(columns=observations.columns)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Filter observations.csv to detections meeting each species' appliedCutoff confidence threshold."
+        description="Build the final observations table from model observations, thresholds and manual validations."
     )
-    parser.add_argument('-i', '--observations', default='../../data/output/species_detection/observations.csv',
-                         help='Path to observations.csv (default: ../../data/output/species_detection/observations.csv)')
-    parser.add_argument('-t', '--thresholds', default='../../data/output/validation/species_confidence_thresholds.csv',
-                         help='Path to species_confidence_thresholds.csv (default: ../../data/output/validation/species_confidence_thresholds.csv)')
-    parser.add_argument('-v', '--validations', default='../../data/output/validation/segment_validation_results.csv',
-                         help='Path to segment_validation_results.csv (default: ../../data/output/validation/segment_validation_results.csv)')
-    parser.add_argument('-o', '--output', default='../../data/output/validation/observations_thresholded.csv',
-                         help='Path to save the filtered observations CSV (default: ../../data/output/validation/observations_thresholded.csv)')
+    parser.add_argument('-i', '--observations', default='../../data/output_pa/species_detection/observations.csv',
+                         help='Path to observations.csv (default: ../../data/output_pa/species_detection/observations.csv)')
+    parser.add_argument('-t', '--thresholds', default='../../data/output_pa/validation/species_confidence_thresholds.csv',
+                         help='Path to species_confidence_thresholds.csv (default: ../../data/output_pa/validation/species_confidence_thresholds.csv)')
+    parser.add_argument('-v', '--validations', default='../../data/output_pa/validation/segment_validation_results.csv',
+                         help='Path to segment_validation_results.csv (default: ../../data/output_pa/validation/segment_validation_results.csv)')
+    parser.add_argument('-c', '--confusions', default='../../data/output_pa/validation/species_confusions.csv',
+                         help='Path to species_confusions.csv, used with --apply-confusions (default: ../../data/output_pa/validation/species_confusions.csv)')
+    parser.add_argument('-o', '--output', default='../../data/output_pa/validation/observations_thresholded.csv',
+                         help='Path to save the final observations CSV (default: ../../data/output_pa/validation/observations_thresholded.csv)')
     parser.add_argument('--keep-unthresholded', action='store_true',
                          help='Keep observations for species missing from the thresholds table (default: drop them)')
+    parser.add_argument('--apply-confusions', action='store_true',
+                         help='Relabel observations of consistently confused species using the confusions table (default: off)')
     args = parser.parse_args()
 
     observations = pd.read_csv(args.observations)
+    for column in ['observationComments', 'observationTags']:
+        observations[column] = observations[column].astype('object')
     thresholds = pd.read_csv(args.thresholds)
-    validations = pd.read_csv(args.validations)
+    decoded = decode_segments(pd.read_csv(args.validations))
 
-    filtered = filter_observations(observations, thresholds, args.keep_unthresholded)
-    manually_validated = get_manually_validated_observations(observations, validations)
-    manually_validated = stamp_manual_validation_metadata(manually_validated)
+    reassigned = build_reassigned(observations, decoded)
+    confirmed = build_confirmed(observations, decoded)
+    rejected_ids = get_manually_rejected_ids(observations, decoded)
+
+    # Source rows already handled by manual validation never go through the threshold
+    reassigned_source_ids = set(reassigned['observationID'])
+    handled_ids = reassigned_source_ids | set(confirmed['observationID']) | rejected_ids
+    remaining = observations[~observations['observationID'].isin(handled_ids)]
+
+    thresholded = filter_observations(remaining, thresholds, args.keep_unthresholded)
+
+    inferred = observations.iloc[0:0]
+    if args.apply_confusions:
+        confusions = pd.read_csv(args.confusions)
+        candidates = remaining[~remaining['observationID'].isin(thresholded['observationID'])]
+        inferred = apply_confusions(candidates, confusions)
+
+    manual = build_manual_annotations(observations, decoded)
 
     combined = (
-        pd.concat([manually_validated, filtered])
+        pd.concat([reassigned, confirmed, thresholded, inferred, manual])
         .drop_duplicates(subset='observationID')
         .sort_values('observationID')
     )
 
-    added_by_manual = (~manually_validated['observationID'].isin(filtered['observationID'])).sum()
     print(
-        f"\nValidated observations: {len(manually_validated)}"
-        f"\nObservations: {len(observations)} -> {len(filtered)} passed cutoff "
-        f"(+{added_by_manual} added via manual validation) -> {len(combined)} total"
+        f"\nObservations: {len(observations)} -> {len(combined)} total"
+        f"\n  thresholded (machine):       {len(thresholded)}"
+        f"\n  manually confirmed:          {len(confirmed)}"
+        f"\n  reassigned manually:         {len(reassigned)}"
+        f"\n  inferred reassignments:      {len(inferred)}"
+        f"\n  manual annotations added:    {len(manual)}"
+        f"\n  dropped (validated Negative): {len(rejected_ids)}"
     )
 
     output_path = Path(args.output)
