@@ -2,8 +2,22 @@
 Compute BirdNET confidence score thresholds for every species in a
 segment_validation_results.csv file (produced by 01_get_validation_status.py),
 which has columns:
-    segmentName, scientificName, classificationProbability, validationResult
+    segmentName, scientificNameModel, classificationProbability,
+    validationResult, scientificNameValidated
 where validationResult is one of "Positive", "Negative", "NA".
+
+Thresholds are only meaningful for segments detected by the model, so rows
+that are manual annotations (scientificNameModel is NA) and rows manually
+reassigned to another species (scientificNameValidated differs from
+scientificNameModel) are excluded from the threshold fits.
+
+Reassigned segments are used separately to build a species confusion table
+(--output-confusions): for each model species A with segments reassigned to a
+species B, a sweep finds the lowest confidence score above which A's validated
+segments are consistently B (same Jeffreys criterion as the species sweep).
+A pair is only applied (appliedConfusionCutoff) when A has no usable cutoff of
+its own (appliedCutoff = inf), e.g. Egretta caerulea consistently being
+Dendropsophus molitor.
 
 For each species, computes two independent candidate cutoffs from its
 validated (Positive/Negative) segments:
@@ -47,16 +61,19 @@ of cutoffConfidence95/99.
 Usage:
     python 02_find_model_threshold.py [-i segment_validation_results.csv] [--plot]
         [--method {auto,model,sweep}]
-        [-o ../../data/output/validation/figures]
-        [--output-csv ../../data/output/validation/species_confidence_thresholds.csv]
+        [-o ../../data/output_pa/validation/figures]
+        [--output-csv ../../data/output_pa/validation/species_confidence_thresholds.csv]
+        [--output-confusions ../../data/output_pa/validation/species_confusions.csv]
 
-    -i/--input defaults to segment_validation_results.csv in the current directory.
+    -i/--input defaults to ../../data/output_pa/validation/segment_validation_results.csv.
     --plot saves a confidence score plot per fitted species (disabled by default).
     --method selects which candidate cutoff is used as appliedCutoff (default: auto).
     -o/--output-dir is where plots are saved when --plot is set
-        (default: ../../data/output/validation/figures).
+        (default: ../../data/output_pa/validation/figures).
     --output-csv is where the summary table is saved
-        (default: ../../data/output/validation/species_confidence_thresholds.csv).
+        (default: ../../data/output_pa/validation/species_confidence_thresholds.csv).
+    --output-confusions is where the species confusion table is saved
+        (default: ../../data/output_pa/validation/species_confusions.csv).
 """
 import argparse
 from pathlib import Path
@@ -103,11 +120,29 @@ def read_validation_results(file_path):
     """Read the segment_validation_results.csv file."""
     return pd.read_csv(file_path)
 
+def split_segments(validation_results):
+    """Split validation results into model-detected segments, reassigned
+    segments and manual annotations.
+
+    Manual annotations have no model species (scientificNameModel is NA).
+    Reassigned segments have a validated species different from the model's.
+    Returns (model_segments, reassigned, n_manual).
+    """
+    is_manual = validation_results['scientificNameModel'].isna()
+    validated = validation_results['scientificNameValidated']
+    is_reassigned = (
+        ~is_manual
+        & validated.notna()
+        & (validated != validation_results['scientificNameModel'])
+    )
+    model_segments = validation_results[~is_manual & ~is_reassigned]
+    return model_segments, validation_results[is_reassigned], int(is_manual.sum())
+
 def load_data(validation_results, species):
     """Filter validation results to a single species' validated (Positive/Negative)
     segments, mapping validationResult to 0/1 in 'positive'.
     """
-    data = validation_results[validation_results['scientificName'] == species]
+    data = validation_results[validation_results['scientificNameModel'] == species]
     data = data[data['validationResult'].isin(['Positive', 'Negative'])].copy()
     data = data.dropna(subset=['classificationProbability'])
     data['positive'] = data['validationResult'].map({'Negative': 0, 'Positive': 1})
@@ -312,26 +347,80 @@ def summarize_species(species, data, method):
 
     return row, null_model, conf_model
 
+def compute_confusions(model_and_reassigned, thresholds):
+    """Build the species confusion table from reassigned segments.
+
+    For each model species A with segments reassigned to a species B, takes all
+    of A's resolved segments (Positive/Negative, plus every reassigned one) and
+    sweeps for the lowest confidence score above which they are consistently B
+    (positive = reassigned to B). The pair cutoff is only applied
+    (appliedConfusionCutoff) when A has no usable cutoff of its own, i.e. its
+    appliedCutoff in `thresholds` is infinite or A is missing from it.
+    """
+    sweep_cols = [f'sweepCutoff{pct_label(p)}' for p in SWEEP_TARGET_PRECISIONS]
+    primary_col = f'sweepCutoff{pct_label(PRIMARY_TARGET_PRECISION)}'
+    own_cutoffs = thresholds.set_index('scientificName')['appliedCutoff']
+
+    validated = model_and_reassigned['scientificNameValidated']
+    model = model_and_reassigned['scientificNameModel']
+    is_reassigned = validated.notna() & (validated != model)
+    resolved = model_and_reassigned[
+        model_and_reassigned['validationResult'].isin(['Positive', 'Negative']) | is_reassigned
+    ].dropna(subset=['classificationProbability'])
+
+    rows = []
+    reassigned = model_and_reassigned[is_reassigned]
+    for (species, confused), _ in reassigned.groupby(['scientificNameModel', 'scientificNameValidated']):
+        data = resolved[resolved['scientificNameModel'] == species].copy()
+        data['positive'] = (data['scientificNameValidated'] == confused).astype(int)
+        n_to_confused = int(data['positive'].sum())
+        n_positive_own = int((data['validationResult'] == 'Positive').sum())
+
+        row = {
+            'modelSpecies': species,
+            'confusedSpecies': confused,
+            'nResolved': len(data),
+            'nReassignedToConfused': n_to_confused,
+            'nPositiveOwn': n_positive_own,
+            'consistency': n_to_confused / len(data) if len(data) else np.nan,
+        }
+        for p, col in zip(SWEEP_TARGET_PRECISIONS, sweep_cols):
+            row[col] = threshold_sweep_cutoff(data, p)
+
+        own_cutoff = own_cutoffs.get(species, np.inf)
+        eligible = np.isinf(own_cutoff) and not np.isnan(row[primary_col])
+        row['appliedConfusionCutoff'] = row[primary_col] if eligible else np.inf
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description='Compute BirdNET confidence thresholds for every species in a segment_validation_results.csv file.'
     )
-    parser.add_argument('-i', '--input', default='../../data/output/validation/segment_validation_results.csv',
-                         help='Path to segment_validation_results.csv (default: ../../data/output/validation/segment_validation_results.csv)')
+    parser.add_argument('-i', '--input', default='../../data/output_pa/validation/segment_validation_results.csv',
+                         help='Path to segment_validation_results.csv (default: ../../data/output_pa/validation/segment_validation_results.csv)')
     parser.add_argument('--method', choices=['auto', 'model', 'sweep'], default='auto',
                          help="Which candidate cutoff to use as appliedCutoff: 'model', 'sweep', "
                               "or 'auto' (sweep first, then model). Default: auto.")
     parser.add_argument('--plot', action='store_true',
                          help='Save a confidence score plot per fitted species (disabled by default)')
-    parser.add_argument('-o', '--output-dir', default='../../data/output/validation/figures',
-                         help='Directory to save plots when --plot is set (default: ../../data/output/validation/figures)')
-    parser.add_argument('--output-csv', default='../../data/output/validation/species_confidence_thresholds.csv',
-                         help='Path to save the summary CSV (default: ../../data/output/validation/species_confidence_thresholds.csv)')
+    parser.add_argument('-o', '--output-dir', default='../../data/output_pa/validation/figures',
+                         help='Directory to save plots when --plot is set (default: ../../data/output_pa/validation/figures)')
+    parser.add_argument('--output-csv', default='../../data/output_pa/validation/species_confidence_thresholds.csv',
+                         help='Path to save the summary CSV (default: ../../data/output_pa/validation/species_confidence_thresholds.csv)')
+    parser.add_argument('--output-confusions', default='../../data/output_pa/validation/species_confusions.csv',
+                         help='Path to save the species confusion CSV (default: ../../data/output_pa/validation/species_confusions.csv)')
     args = parser.parse_args()
 
-    validation_results = read_validation_results(args.input)
-    species_list = sorted(validation_results['scientificName'].unique())
+    all_results = read_validation_results(args.input)
+    validation_results, reassigned, n_manual = split_segments(all_results)
+    print(
+        f"Excluded from threshold fits: {n_manual} manual annotations, "
+        f"{len(reassigned)} reassigned segments"
+    )
+    species_list = sorted(validation_results['scientificNameModel'].dropna().unique())
 
     summary_rows = []
     for species in species_list:
@@ -360,6 +449,13 @@ def main():
     output_csv_path.parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(output_csv_path, index=False)
     print(f"\nSaved summary for {len(summary)} species to {output_csv_path}")
+
+    confusions = compute_confusions(all_results[all_results['scientificNameModel'].notna()], summary)
+    confusions = confusions.round(3)
+    confusions_path = Path(args.output_confusions)
+    confusions_path.parent.mkdir(parents=True, exist_ok=True)
+    confusions.to_csv(confusions_path, index=False)
+    print(f"Saved {len(confusions)} species confusion pairs to {confusions_path}")
 
 # Run the main function
 if __name__ == "__main__":
