@@ -30,4 +30,4 @@ audio_outliers:
 timelapse:
   sample_length: 1       # Length of each sample for timelapse (in seconds)
   sample_period: '30min' # Time interval between samples (e.g., '30min')
-  sample_date: 2026-05-12      # Specific date for timelapse (YYYY-MM-DD). If null, the date with the most data will be used.
+  sample_date: null      # Specific date for timelapse (YYYY-MM-DD). If null, the date with the most data will be used.
