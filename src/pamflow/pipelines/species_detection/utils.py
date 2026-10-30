@@ -6,7 +6,9 @@ from contextlib import redirect_stdout
 import concurrent.futures
 
 
-def species_detection_single_file(wav_file_path, lat, lon, mediaID, deploymentID):
+def species_detection_single_file(
+    wav_file_path, lat, lon, mediaID, deploymentID, min_conf=0.1
+):
     """Performs species detection on a single media file.
 
     This utility function processes a single media file to detect species based on
@@ -20,17 +22,22 @@ def species_detection_single_file(wav_file_path, lat, lon, mediaID, deploymentID
     file_path : str
         The path to the media file to be processed.
 
-    latitude : float
+    latitude : float or None
         The latitude of the deployment location where the media file was recorded.
+        If None, detections are not filtered by location.
 
-    longitude : float
+    longitude : float or None
         The longitude of the deployment location where the media file was recorded.
+        If None, detections are not filtered by location.
 
     media_id : str
         A unique identifier for the media file.
 
     deployment_id : str
         A unique identifier for the deployment associated with the media file.
+
+    min_conf : float, default 0.1
+        Minimum BirdNET confidence for a detection to be kept.
 
     Returns
     -------
@@ -47,6 +54,7 @@ def species_detection_single_file(wav_file_path, lat, lon, mediaID, deploymentID
             wav_file_path,
             lat=lat,
             lon=lon,
+            min_conf=min_conf,
         )
     
         recording.analyze()

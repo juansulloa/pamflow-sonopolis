@@ -20,6 +20,8 @@ def create_pipeline(**kwargs):
                     "media@pamDP",
                     "deployments@pamDP",
                     "params:species_detection_parameters.n_jobs",
+                    "params:species_detection_parameters.use_location_filter",
+                    "params:species_detection_parameters.min_conf",
                 ],
                 outputs="unfiltered_observations@pamDP",
                 name="species_detection_node",

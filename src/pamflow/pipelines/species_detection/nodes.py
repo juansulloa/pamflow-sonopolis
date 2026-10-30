@@ -16,7 +16,9 @@ from rich.console import Console
 # Set up logging
 logger = logging.getLogger(__name__)
 
-def species_detection_parallel(media, deployments, n_jobs):
+def species_detection_parallel(
+    media, deployments, n_jobs, use_location_filter=True, min_conf=0.1
+):
     """Detects species in media files using parallel processing.
 
     This node processes media files and deployment metadata to perform species
@@ -38,6 +40,16 @@ def species_detection_parallel(media, deployments, n_jobs):
         The number of parallel jobs to use for species detection. Passed as
         `params:species_detection_parameters.n_jobs`. If set to -1, the number of jobs will
         be equal to the number of CPU cores.
+
+    use_location_filter : bool, default True
+        Whether to pass the deployment latitude and longitude to BirdNET so that
+        detections are filtered by location. If False, all detections are kept
+        regardless of location. Passed as
+        `params:species_detection_parameters.use_location_filter`.
+
+    min_conf : float, default 0.1
+        Minimum BirdNET confidence for a detection to be kept. Passed as
+        `params:species_detection_parameters.min_conf`.
 
     Returns
     -------
@@ -77,10 +89,11 @@ def species_detection_parallel(media, deployments, n_jobs):
             executor.submit(
                 species_detection_single_file,
                 row["filePath"],
-                row["latitude"],
-                row["longitude"],
+                row["latitude"] if use_location_filter else None,
+                row["longitude"] if use_location_filter else None,
                 row["mediaID"],
                 row["deploymentID"],
+                min_conf,
             )
             for idx, row in df.iterrows()
         ]
