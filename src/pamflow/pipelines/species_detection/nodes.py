@@ -9,6 +9,7 @@ import logging
 from pamflow.pipelines.species_detection.utils import (
     species_detection_single_file,
     trim_audio,
+    validate_custom_labels,
 )
 from pamflow.datasets.pamDP.observations import observations_pamdp_columns
 from rich.console import Console
@@ -17,7 +18,13 @@ from rich.console import Console
 logger = logging.getLogger(__name__)
 
 def species_detection_parallel(
-    media, deployments, n_jobs, use_location_filter=True, min_conf=0.1
+    media,
+    deployments,
+    n_jobs,
+    use_location_filter=True,
+    min_conf=0.1,
+    classifier_model_path=None,
+    classifier_labels_path=None,
 ):
     """Detects species in media files using parallel processing.
 
@@ -51,6 +58,17 @@ def species_detection_parallel(
         Minimum BirdNET confidence for a detection to be kept. Passed as
         `params:species_detection_parameters.min_conf`.
 
+    classifier_model_path : str or None, default None
+        Path to a custom BirdNET-derived classifier model. If None, the default
+        BirdNET model is used. Passed as
+        `params:species_detection_parameters.classifier_model_path`.
+
+    classifier_labels_path : str or None, default None
+        Path to the labels file of the custom classifier, with one
+        `Genus species_common name` label per line. Required when
+        `classifier_model_path` is set. Passed as
+        `params:species_detection_parameters.classifier_labels_path`.
+
     Returns
     -------
     pandas.DataFrame
@@ -76,6 +94,18 @@ def species_detection_parallel(
     if n_jobs == -1:
         n_jobs = os.cpu_count()
 
+    if (classifier_model_path is None) != (classifier_labels_path is None):
+        raise ValueError(
+            "classifier_model_path and classifier_labels_path must be set "
+            "together, or both left as null to use the default BirdNET model."
+        )
+    if classifier_labels_path is not None:
+        validate_custom_labels(classifier_labels_path)
+        logger.info(
+            f"Using custom model and labels at {classifier_model_path} "
+            f"and {classifier_labels_path}"
+        )
+
     logger.info(
         f"Computing species detection for {df.shape[0]} files using {n_jobs} threads"
     )
@@ -94,6 +124,8 @@ def species_detection_parallel(
                 row["mediaID"],
                 row["deploymentID"],
                 min_conf,
+                classifier_model_path,
+                classifier_labels_path,
             )
             for idx, row in df.iterrows()
         ]

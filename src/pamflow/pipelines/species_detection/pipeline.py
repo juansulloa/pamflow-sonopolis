@@ -22,6 +22,8 @@ def create_pipeline(**kwargs):
                     "params:species_detection_parameters.n_jobs",
                     "params:species_detection_parameters.use_location_filter",
                     "params:species_detection_parameters.min_conf",
+                    "params:species_detection_parameters.classifier_model_path",
+                    "params:species_detection_parameters.classifier_labels_path",
                 ],
                 outputs="unfiltered_observations@pamDP",
                 name="species_detection_node",

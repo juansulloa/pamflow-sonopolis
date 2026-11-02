@@ -8,9 +8,25 @@ from pamflow.pipelines.species_detection import nodes
 CALLS = []
 
 
-def fake_single_file(wav_file_path, lat, lon, mediaID, deploymentID, min_conf):
+def fake_single_file(
+    wav_file_path,
+    lat,
+    lon,
+    mediaID,
+    deploymentID,
+    min_conf,
+    classifier_model_path=None,
+    classifier_labels_path=None,
+):
     CALLS.append(
-        {"lat": lat, "lon": lon, "mediaID": mediaID, "min_conf": min_conf}
+        {
+            "lat": lat,
+            "lon": lon,
+            "mediaID": mediaID,
+            "min_conf": min_conf,
+            "model": classifier_model_path,
+            "labels": classifier_labels_path,
+        }
     )
     return [
         {
@@ -70,3 +86,47 @@ def test_location_filter_disabled_passes_none():
     assert all(c["lat"] is None and c["lon"] is None for c in CALLS)
     assert all(c["min_conf"] == 0.1 for c in CALLS)
     assert observations.shape[0] == 2
+
+
+def test_default_model_passes_none():
+    media, deployments = make_inputs()
+    nodes.species_detection_parallel(media, deployments, n_jobs=1)
+    assert all(c["model"] is None and c["labels"] is None for c in CALLS)
+
+
+def test_custom_model_is_forwarded(tmp_path):
+    labels = tmp_path / "labels.txt"
+    labels.write_text("Turdus fuscater_Great Thrush\nZonotrichia capensis_Rufous-collared Sparrow\n")
+    media, deployments = make_inputs()
+    nodes.species_detection_parallel(
+        media,
+        deployments,
+        n_jobs=1,
+        classifier_model_path="model.tflite",
+        classifier_labels_path=str(labels),
+    )
+    assert len(CALLS) == 2
+    assert all(c["model"] == "model.tflite" for c in CALLS)
+    assert all(c["labels"] == str(labels) for c in CALLS)
+
+
+def test_invalid_custom_labels_raise(tmp_path):
+    labels = tmp_path / "labels.txt"
+    labels.write_text("Turdus fuscater\n")
+    media, deployments = make_inputs()
+    with pytest.raises(ValueError, match="line 1"):
+        nodes.species_detection_parallel(
+            media,
+            deployments,
+            n_jobs=1,
+            classifier_model_path="model.tflite",
+            classifier_labels_path=str(labels),
+        )
+
+
+def test_model_without_labels_raises():
+    media, deployments = make_inputs()
+    with pytest.raises(ValueError, match="together"):
+        nodes.species_detection_parallel(
+            media, deployments, n_jobs=1, classifier_model_path="model.tflite"
+        )

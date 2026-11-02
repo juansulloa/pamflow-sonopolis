@@ -6,8 +6,43 @@ from contextlib import redirect_stdout
 import concurrent.futures
 
 
+def validate_custom_labels(labels_path):
+    """Check that a custom BirdNET labels file has valid label lines.
+
+    Every non-empty line must have the format ``Genus species_common name``,
+    with exactly one ``_`` separating the scientific and common names.
+
+    Parameters
+    ----------
+    labels_path : str
+        Path to the custom labels text file.
+
+    Raises
+    ------
+    ValueError
+        If a line does not contain exactly one ``_``.
+    """
+    with open(labels_path) as f:
+        for line_number, line in enumerate(f, start=1):
+            label = line.strip()
+            if label.count("_") != 1:
+                raise ValueError(
+                    f"Invalid label on line {line_number}: '{label}'. "
+                    "Custom BirdNET labels must have the format "
+                    "'Genus species_common name', with exactly one '_' "
+                    "separating the scientific and common names."
+                )
+
+
 def species_detection_single_file(
-    wav_file_path, lat, lon, mediaID, deploymentID, min_conf=0.1
+    wav_file_path,
+    lat,
+    lon,
+    mediaID,
+    deploymentID,
+    min_conf=0.1,
+    classifier_model_path=None,
+    classifier_labels_path=None,
 ):
     """Performs species detection on a single media file.
 
@@ -39,6 +74,14 @@ def species_detection_single_file(
     min_conf : float, default 0.1
         Minimum BirdNET confidence for a detection to be kept.
 
+    classifier_model_path : str or None, default None
+        Path to a custom BirdNET-derived classifier model file. If None, the
+        default BirdNET model is used.
+
+    classifier_labels_path : str or None, default None
+        Path to the labels file of the custom classifier. If None, the default
+        BirdNET labels are used.
+
     Returns
     -------
     list
@@ -48,7 +91,10 @@ def species_detection_single_file(
     """
     with open(os.devnull, 'w') as fnull, redirect_stdout(fnull):  # Suppress print messages
         # Load and initialize the BirdNET-Analyzer models.
-        analyzer = Analyzer()
+        analyzer = Analyzer(
+            classifier_model_path=classifier_model_path,
+            classifier_labels_path=classifier_labels_path,
+        )
         recording = Recording(
             analyzer,
             wav_file_path,
