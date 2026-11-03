@@ -222,7 +222,10 @@ def filter_observations(
         `params:species_detection_parameters.minimum_observations`.
 
     segment_size : int
-        The number of segments per species. Passed as `params:species_detection_parameters.segment_size`.
+        The maximum number of segments per species. Passed as
+        `params:species_detection_parameters.segment_size`. If it is greater than
+        `minimum_observations`, a warning is logged and species with fewer observations
+        contribute all of them.
 
     Returns
     -------
@@ -231,9 +234,11 @@ def filter_observations(
         as `observations@pamDP`. The DataFrame follows the pamDP.observations format.
     """
     if segment_size > minimum_observations:
-        raise ValueError(f"""Number of segments per species ({segment_size}) is greater than minimum number of observations per species ({minimum_observations}).\n 
-                             Change the values of these parameters in conf/base/paramteres.yml  to fix this issue. 
-        """)
+        logger.warning(
+            f"Number of segments per species ({segment_size}) is greater than the minimum "
+            f"number of observations per species ({minimum_observations}). Species with fewer "
+            f"than {segment_size} observations will contribute all the observations they have."
+        )
 
     target_species = target_species.drop_duplicates()
     if target_species.shape[0] != 0:

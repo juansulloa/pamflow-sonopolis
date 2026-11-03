@@ -14,7 +14,7 @@ species_detection_parameters:
   use_location_filter: false #If false, lat/lon are not passed to BirdNET and detections are not filtered by location
   min_conf: 0.1 #Minimum BirdNET confidence for a detection to be kept
   minimum_observations: 20 #Minimum number of detections for a species to be considered  in the observations format
-  segment_size: 20 #Number of sample segments per species,
+  segment_size: 50 #Number of sample segments per species,
   manual_annotations_file_name: 'species_manual_annotations' #prefix in file name for manual annotations:  {manual_annotations_file_name}_{species}
   classifier_model_path: /Users/jsulloa/github/pamflow-sonopolis/data/input/custom_model_v20261101/Custom_Classifier.tflite #Path to a custom BirdNET-derived classifier model file, null for the default BirdNET model
   classifier_labels_path: /Users/jsulloa/github/pamflow-sonopolis/data/input/custom_model_v20261101/Custom_Classifier_Labels.txt #Path to the custom classifier labels file (one 'Genus species_common name' per line), null for the default BirdNET model
