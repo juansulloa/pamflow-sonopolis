@@ -73,7 +73,7 @@ kedro run --pipeline species_detection
 |------------|--------------|---------|----------|
 | `species_detection_node` | Runs the species detection algorithm in parallel using media and deployment data to generate unfiltered species observations. | `media@pamDP`<br>`deployments@pamDP`<br>`params:species_detection_parameters.n_jobs` | `unfiltered_observations@pamDP` |
 | `filter_observations_node` | Filters unfiltered observations based on target species, minimum number of observations, and segment size parameters. | `unfiltered_observations@pamDP`<br>`target_species@pandas`<br>`params:species_detection_parameters.minimum_observations`<br>`params:species_detection_parameters.segment_size` | `observations@pamDP` |
-| `create_segments_node` | Creates time or frequency segments from observations and associated media based on segment size. | `observations@pamDP`<br>`media@pamDP`<br>`params:species_detection_parameters.segment_size` | `segments@pandas` |
+| `create_segments_node` | Creates time or frequency segments from observations and associated media based on segment size. | `observations@pamDP`<br>`media@pamDP`<br>`params:species_detection_parameters.segment_size`<br>`params:species_detection_parameters.segment_sampling_method`<br>`params:species_detection_parameters.segment_n_bins`<br>`params:species_detection_parameters.segment_seed` | `segments@pandas` |
 | `create_segments_folder_node` | Generates an audio folder dataset from created segments for downstream processing or manual validation. | `segments@pandas`<br>`params:species_detection_parameters.n_jobs`<br>`params:species_detection_parameters.segment_size` | `segments_audio_folder@AudioFolderDataset` |
 | `create_manual_annotation_formats_node` | Produces manual annotation files from segment data for human validation or annotation tools. | `segments@pandas`<br>`params:species_detection_parameters.manual_annotations_file_name` | `manual_annotations@PartitionedDataset` |
 | `plot_observations_summary_node` | Creates summary plots visualizing total and temporal patterns of species observations relative to media data. | `observations@pamDP`<br>`media@pamDP` | `observations_summary@matplotlib` |
@@ -87,6 +87,9 @@ kedro run --pipeline species_detection
 | `species_detection_parameters` | `n_jobs` | Number of cores used in parallelization. `-1` forces the use of all available cores. | `-1` |
 | `species_detection_parameters` | `minimum_observations` | Minimum number of detections required for a species to be included in the observations format. | `20` |
 | `species_detection_parameters` | `segment_size` | Number of sample segments generated per species. | `20` |
+| `species_detection_parameters` | `segment_sampling_method` | `random` (uniform) or `stratified` (equal draws per classification probability bin). | `random` |
+| `species_detection_parameters` | `segment_n_bins` | Number of probability bins for stratified sampling. | `5` |
+| `species_detection_parameters` | `segment_seed` | Integer seed to reproduce the sample; `null` for a different sample each run. | `null` |
 | `species_detection_parameters` | `manual_annotations_file_name` | Prefix for manual annotation files, formatted as `{manual_annotations_file_name}_{species}`. | `'species_manual_annotations'` |
 
 </details>

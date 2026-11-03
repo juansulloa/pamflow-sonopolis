@@ -5,6 +5,9 @@ species_detection_parameters:
   min_conf: 0.1 #Minimum BirdNET confidence for a detection to be kept
   minimum_observations: 20 #Minimum number of detections for a species to be considered  in the observations format
   segment_size: 20 #Number of sample segments per species,
+  segment_sampling_method: random #How segments are sampled per species: 'random' (uniform) or 'stratified' (equal draws per classification probability bin)
+  segment_n_bins: 5 #Number of equal-width probability bins, used only when segment_sampling_method is 'stratified'
+  segment_seed: null #Integer seed to reproduce the segment sample, null for a different sample each run
   manual_annotations_file_name: 'species_manual_annotations' #prefix in file name for manual annotations:  {manual_annotations_file_name}_{species}
   classifier_model_path: null #Path to a custom BirdNET-derived classifier model file, null for the default BirdNET model
   classifier_labels_path: null #Path to the custom classifier labels file (one 'Genus species_common name' per line), null for the default BirdNET model
