@@ -1,7 +1,7 @@
 """
 Grafica de barras apiladas horizontales: composicion del paisaje sonoro
 (biofonia, antropofonia, geofonia, silencio) por sitio, agrupado por
-area protegida y ordenado por %antropofonia dentro de cada area.
+area protegida y ordenado por %silencio y %biofonía.
 
 Input:
     soundscape_comparison_table.csv  (deploymentID, pct_biophony, pct_anthropophony,
@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # --- Cargar datos ---
-comparison = pd.read_csv("../../data/output/panns/soundscape_comparison_table.csv")
-deployments = pd.read_csv("../../data/output/data_preparation/deployments.csv")
-output_path = "../../data/output/panns/soundscape_stacked_by_area.png"
+comparison = pd.read_csv("../../data/output_pb/panns/soundscape_comparison_table.csv")
+deployments = pd.read_csv("../../data/output_pb/data_preparation/deployments.csv")
+output_path = "../../data/output_pb/panns/soundscape_stacked_by_area.png"
 
 # --- Union y extraer el nombre del area protegida ---
 df = comparison.merge(
@@ -24,30 +24,20 @@ df = comparison.merge(
 df["area"] = df["locationName"].str.split("-p").str[0]
 df["area"] = df["area"].fillna("Sin área asignada")
 
-# --- Orden de areas: Entrenubes primero (otro ecosistema), luego humedales
-# en el orden solicitado ---
-area_order = [
-    "Entrenubes",
-    "Córdoba",
-    "JuanAmarillo",
-    "Tibanica",
-    "Torca-Guaymaral",
-    "TinguaAzul",
-    "ElTunjo",
-    "SantaMariaDelLago",
-    "LaVaca",
-]
-# Cualquier area no listada explicitamente (p. ej. "Sin área asignada" o
-# SantaMariaDelLago si no se menciono) se agrega al final, en el orden en que
-# aparezca en los datos.
-remaining_areas = [a for a in df["area"].unique() if a not in area_order]
-area_order = area_order + remaining_areas
-
+# --- Orden de areas: por promedio de %silencio (desc) y luego %biofonia (desc) ---
+area_stats = (
+    df.groupby("area")[["pct_silence", "pct_biophony"]]
+    .mean()
+    .sort_values(["pct_silence", "pct_biophony"], ascending=[False, False])
+)
+area_order = list(area_stats.index)
 df["area"] = pd.Categorical(df["area"], categories=area_order, ordered=True)
 
-# --- Ordenar: por el orden de area definido arriba, y dentro de cada area
-# por %antropofonia ascendente ---
-df = df.sort_values(["area", "pct_anthropophony"], ascending=[True, True]).reset_index(drop=True)
+# --- Ordenar: por area, y dentro de cada area por %silencio (desc) y luego
+# %biofonia (desc) ---
+df = df.sort_values(
+    ["area", "pct_silence", "pct_biophony"], ascending=[True, False, False]
+).reset_index(drop=True)
 
 # --- Categorias y colores ---
 categories = ["pct_biophony", "pct_anthropophony", "pct_geophony", "pct_silence"]

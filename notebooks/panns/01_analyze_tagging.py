@@ -4,8 +4,10 @@ Perform inferences on audio files using PANNs (Pretrained Audio Neural Networks)
 Outputs one observations.csv per deploymentID, following a Camtrap/pamDP-style
 long-format observation table (one row per label per time window).
 
-Need to run on conda environment panns
-conda activate panns
+How to run:
+    conda activate panns
+    # Adjust configurations at lines 135
+    python notebooks/panns/01_analyze_tagging.py
 
 --------------------------------------------------------------------------------
 How detections are constructed
@@ -133,8 +135,8 @@ def process_audio_file(audio_path, deployment_id, media_id, at, segment_seconds=
 
 def main():
     # Variables
-    save_path = '../../data/output/panns/'
-    media_path = "../../data/output/data_preparation/media.csv"
+    save_path = '../../data/output_pb/panns/soundscape_composition_per_area/'
+    media_path = "../../data/output_pb/data_preparation/media.csv"
     segment_seconds = 10
     top_k = 10
     device = 'cpu'

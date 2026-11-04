@@ -121,8 +121,8 @@ def build_comparison_table(save_path, top_n=3, file_pattern=r".*_observations\.c
 
 if __name__ == "__main__":
     # --- Variables ---
-    save_path = "../../data/output/panns/"     # carpeta con {deploymentID}_observations.csv
-    output_path = "../../data/output/panns/soundscape_comparison_table.csv"
+    save_path = "../../data/output_pb/panns/soundscape_composition_per_area/"     # carpeta con {deploymentID}_observations.csv
+    output_path = "../../data/output_pb/panns/soundscape_comparison_table.csv"
     top_n = 3
 
     print(f"Escaneando: {save_path}\n")

@@ -116,8 +116,8 @@ def build_comparison_table(save_path, top_n=3, include_unclassified_in_total=Tru
 
 if __name__ == "__main__":
     # --- Variables ---
-    save_path = "../../data/output/panns/"     # folder with {deploymentID}_observations.csv files
-    output_path = "../../data/output/panns/soundscape_comparison_table.csv"
+    save_path = "../../data/output_pb/panns/soundscape_composition_per_area/"     # folder with {deploymentID}_observations.csv files
+    output_path = "../../data/output_pb/panns/soundscape_comparison_table.csv"
     top_n = 3
     include_unclassified_in_total = True  # keep visible rather than silently redistributed
 
