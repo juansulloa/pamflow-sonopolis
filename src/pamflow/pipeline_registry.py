@@ -14,6 +14,9 @@ from pamflow.pipelines.acoustic_indices import pipeline as acoustic_indices
 from pamflow.pipelines.species_detection import pipeline as species_detection
 from pamflow.pipelines.data_science import pipeline as data_science
 from pamflow.pipelines.export import pipeline as export
+from pamflow.pipelines.detection_validation import (
+    pipeline as detection_validation,
+)
 
 
 def register_pipelines() -> Dict[str, Pipeline]:
@@ -29,6 +32,7 @@ def register_pipelines() -> Dict[str, Pipeline]:
     species_detection_pipeline = species_detection.create_pipeline()
     data_science_pipeline = data_science.create_pipeline()
     export_pipeline = export.create_pipeline()
+    detection_validation_pipeline = detection_validation.create_pipeline()
 
     pamflow_pipeline = (
         data_preparation_pipeline
@@ -49,4 +53,5 @@ def register_pipelines() -> Dict[str, Pipeline]:
         "species_detection": species_detection_pipeline,
         "data_science": data_science_pipeline,
         "export": export_pipeline,
+        "detection_validation": detection_validation_pipeline,  # needs manual validations
     }

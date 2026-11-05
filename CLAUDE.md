@@ -57,6 +57,7 @@ Pipelines pass data through the catalog rather than calling each other directly.
 3. `species_detection` produces `observations@pamDP` and segment audio/spectrograms used for manual annotation.
 4. `data_science` consumes manually-annotated data (`manual_annotations@PartitionedDataset`) to find detection thresholds and build train/test spectrogram datasets — this is why it's excluded from the default pipeline (it depends on a human-in-the-loop annotation step).
 5. `export` reformats `media@pamDP`, `deployments@pamDP`, and thresholded observations into GBIF/Darwin Core-style CSVs.
+6. `detection_validation` (standalone, excluded from the default pipeline like `data_science`) turns manual validations of detected segments (a folder of annotation CSVs under `<output_dir>/validation/validation_results`) into a segment validation table, per-species confidence thresholds, and a validated `observations_thresholded` table. Run it after the manual validation step.
 
 ### Custom Kedro datasets (`src/pamflow/datasets/`)
 - `audio_dataset.py` (`SoundDataset`) — loads/saves a single WAV as a numpy array via `scikit-maad`.

@@ -1,0 +1,38 @@
+validation_results@PartitionedDataset:
+  type: partitions.PartitionedDataset
+  path: ${globals:output_dir}/validation/validation_results
+  dataset:
+    type: pandas.CSVDataset
+    load_args:
+      dtype: str
+      keep_default_na: false
+      na_values: [""]
+  filename_suffix: ".csv"
+
+segment_validation_results@pandas:
+  type: pandas.CSVDataset
+  filepath: ${globals:output_dir}/validation/segment_validation_results.csv
+  save_args:
+    index: false
+    na_rep: NA
+
+species_confidence_thresholds@pandas:
+  type: pandas.CSVDataset
+  filepath: ${globals:output_dir}/validation/species_confidence_thresholds.csv
+  save_args:
+    index: false
+
+species_confusions@pandas:
+  type: pandas.CSVDataset
+  filepath: ${globals:output_dir}/validation/species_confusions.csv
+  save_args:
+    index: false
+
+threshold_plots@PartitionedDataset:
+  type: partitions.PartitionedDataset
+  path: ${globals:output_dir}/validation/threshold_plots
+  dataset:
+    type: matplotlib.MatplotlibWriter
+    save_args:
+      dpi: 300
+  filename_suffix: ".png"
