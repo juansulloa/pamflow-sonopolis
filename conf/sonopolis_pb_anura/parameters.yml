@@ -21,3 +21,13 @@ species_detection_parameters:
   segment_sampling_method: stratified #How segments are sampled per species: 'random' (uniform) or 'stratified' (equal draws per classification probability bin)
   segment_n_bins: 10 #Number of equal-width probability bins, used only when segment_sampling_method is 'stratified'
   segment_seed: 123 #Integer seed to reproduce the segment sample, null for a different sample each run
+
+detection_validation_parameters:
+  true_positive_rate: 0.9 #True positive rate (precision) a species cutoff must reach. Between 0 and 1 (exclusive). Output column names follow it (0.9 -> cutoffConfidence90, sweepCutoff90)
+  min_sample_size: 20 #Minimum validated segments to trust a model cutoff, and minimum segments at or above a candidate threshold to trust a sweep cutoff
+  threshold_method: auto #Source of appliedCutoff: 'sweep', 'model' or 'auto' (sweep first, then model)
+  plot_thresholds: false #If true, save a confidence score plot per fitted species
+  keep_unthresholded: false #If true, keep unfiltered observations of species with no cutoff (no validated segments). Default drops them
+  apply_confusions: false #If true, relabel observations of species consistently confused with another one (species_confusions) and tag them 'inferred_reassignment'
+  fallback_classified_by: null #classifiedBy for human-reviewed rows whose annotator is empty. null leaves it blank
+  classification_timestamp: '2026-11-04T00:00:00' #ISO 8601 timestamp for human-reviewed rows, e.g. '2026-11-04T00:00:00'. null uses the run time
