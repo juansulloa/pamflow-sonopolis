@@ -126,8 +126,9 @@ def test_find_model_threshold_columns_follow_rate_and_min_sample_size(rate, labe
     species_a = thresholds.set_index("scientificName").loc["Species a"]
     assert species_a["cutoffSource"] == "sweep"
     assert 0.4 <= species_a["appliedCutoff"] <= 0.99
-    # Species b only has a reassigned segment: no validated segments, excluded
-    assert "Species b" not in thresholds["scientificName"].tolist()
+    # Species b only has a reassigned segment, which counts as a negative
+    species_b = thresholds.set_index("scientificName").loc["Species b"]
+    assert species_b["cutoffSource"] != "sweep"
     assert confusions["confusedSpecies"].tolist() == ["Species c"]
 
 
@@ -284,3 +285,13 @@ def test_update_observations_apply_confusions_relabels_inferred():
     ).set_index("observationID")
     assert result.loc[5, "scientificName"] == "Species e"
     assert result.loc[5, "observationTags"] == "inferred_reassignment"
+
+
+def test_load_data_counts_reassigned_as_negative():
+    table = make_validation_table()
+    data = utils.load_data(table, "Species b")
+    assert len(data) == 1
+    assert data["positive"].tolist() == [0]
+    # Positives of the species are unaffected
+    species_a = utils.load_data(table, "Species a")
+    assert species_a["positive"].sum() == (table["validationResult"] == "Positive").sum()

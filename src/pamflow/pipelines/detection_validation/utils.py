@@ -229,13 +229,19 @@ def split_segments(validation_results):
 
 
 def load_data(validation_results, species):
-    """Filter validation results to a single species' validated (Positive/Negative)
-    segments, mapping validationResult to 0/1 in 'positive'.
+    """Filter validation results to a single species' validated segments, mapping
+    them to 0/1 in 'positive'.
+
+    Positive segments are 1. Negative segments and segments reassigned to a
+    different species are 0: a reassigned segment is a false positive of the
+    model species.
     """
     data = validation_results[validation_results["scientificNameModel"] == species]
-    data = data[data["validationResult"].isin(["Positive", "Negative"])].copy()
+    validated = data["scientificNameValidated"]
+    is_reassigned = validated.notna() & (validated != data["scientificNameModel"])
+    data = data[data["validationResult"].isin(["Positive", "Negative"]) | is_reassigned].copy()
     data = data.dropna(subset=["classificationProbability"])
-    data["positive"] = data["validationResult"].map({"Negative": 0, "Positive": 1})
+    data["positive"] = (data["validationResult"] == "Positive").astype(int)
     return data
 
 

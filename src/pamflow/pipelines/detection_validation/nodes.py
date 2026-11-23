@@ -58,8 +58,9 @@ def find_model_threshold(
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, object]]:
     """Compute the confidence cutoff of every species and the species confusions.
 
-    Manual annotations and reassigned segments are excluded from the
-    per-species fits. Reassigned segments feed the confusion table instead.
+    Manual annotations are excluded from the per-species fits. Segments
+    reassigned to another species count as negatives (false positives) of the
+    species proposed by the model, and also feed the confusion table.
 
     Parameters
     ----------
@@ -86,10 +87,13 @@ def find_model_threshold(
 
     validation_results, reassigned, n_manual = utils.split_segments(segment_validation_results)
     logger.info(
-        "Excluded from threshold fits: %d manual annotations, %d reassigned segments",
+        "Excluded from threshold fits: %d manual annotations. "
+        "%d reassigned segments counted as negatives of the model species",
         n_manual,
         len(reassigned),
     )
+    # Reassigned segments are false positives of the model species
+    validation_results = pd.concat([validation_results, reassigned])
 
     plots = {}
     summary_rows = []
